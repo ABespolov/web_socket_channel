@@ -61,7 +61,7 @@ class _WebSocketOpcode {
 /// socket will be closed when the processor encounter an error. Not using it
 /// will lead to undefined behaviour.
 class _WebSocketProtocolTransformer extends StreamTransformerBase<List<int>,
-        dynamic /*List<int>|_WebSocketPing|_WebSocketPong*/ >
+    dynamic /*List<int>|_WebSocketPing|_WebSocketPong*/ >
     implements EventSink<List<int>> {
   static const int START = 0;
   static const int LEN_FIRST = 1;
@@ -99,7 +99,7 @@ class _WebSocketProtocolTransformer extends StreamTransformerBase<List<int>,
 
   @override
   Stream<dynamic /*List<int>|_WebSocketPing|_WebSocketPong*/ > bind(
-          Stream<List<int>> stream) =>
+      Stream<List<int>> stream) =>
       Stream.eventTransformed(stream, (EventSink eventSink) {
         if (_eventSink != null) {
           throw StateError('WebSocket transformer already used.');
@@ -361,8 +361,8 @@ class _WebSocketProtocolTransformer extends StreamTransformerBase<List<int>,
 
   bool _isControlFrame() =>
       _opcode == _WebSocketOpcode.CLOSE ||
-      _opcode == _WebSocketOpcode.PING ||
-      _opcode == _WebSocketOpcode.PONG;
+          _opcode == _WebSocketOpcode.PING ||
+          _opcode == _WebSocketOpcode.PONG;
 
   void _prepareForNextFrame() {
     if (_state != CLOSED && _state != FAILURE) _state = START;
@@ -399,13 +399,13 @@ class _WebSocketOutgoingTransformer
   @override
   Stream<List<int>> bind(Stream stream) =>
       Stream<List<int>>.eventTransformed(stream,
-          (EventSink<List<int>> eventSink) {
-        if (_eventSink != null) {
-          throw StateError('WebSocket transformer already used');
-        }
-        _eventSink = eventSink;
-        return this;
-      });
+              (EventSink<List<int>> eventSink) {
+            if (_eventSink != null) {
+              throw StateError('WebSocket transformer already used');
+            }
+            _eventSink = eventSink;
+            return this;
+          });
 
   @override
   void add(message) {
@@ -459,12 +459,12 @@ class _WebSocketOutgoingTransformer
 
   void addFrame(int opcode, List<int>? data) {
     createFrame(
-            opcode,
-            data,
-            webSocket._serverSide,
-            // Logic around _deflateHelper was removed here, since there will
-            // never be a deflate helper for a cross-platform WebSocket client.
-            false)
+        opcode,
+        data,
+        webSocket._serverSide,
+        // Logic around _deflateHelper was removed here, since there will
+        // never be a deflate helper for a cross-platform WebSocket client.
+        false)
         .forEach((e) {
       _eventSink!.add(e);
     });
@@ -486,8 +486,8 @@ class _WebSocketOutgoingTransformer
 
     // Set FIN and opcode.
     final hoc = _WebSocketProtocolTransformer.FIN |
-        (compressed ? _WebSocketProtocolTransformer.RSV1 : 0) |
-        (opcode & _WebSocketProtocolTransformer.OPCODE);
+    (compressed ? _WebSocketProtocolTransformer.RSV1 : 0) |
+    (opcode & _WebSocketProtocolTransformer.OPCODE);
 
     header[index++] = hoc;
     // Determine size and position of length field.
@@ -615,7 +615,7 @@ class _WebSocketConsumer implements StreamConsumer {
         onResume: _onResume,
         onCancel: _onListen);
     final stream =
-        _WebSocketOutgoingTransformer(webSocket).bind(_controller!.stream);
+    _WebSocketOutgoingTransformer(webSocket).bind(_controller!.stream);
     sink.addStream(stream).then((_) {
       _done();
       _closeCompleter.complete(webSocket);
@@ -690,6 +690,7 @@ class WebSocketImpl extends Stream with _ServiceObject implements StreamSink {
   static final Map<int, WebSocketImpl> _webSockets = <int, WebSocketImpl>{};
   static const int DEFAULT_WINDOW_BITS = 15;
   static const String PER_MESSAGE_DEFLATE = 'permessage-deflate';
+  static const int MAX_RECONNECT_ATTEMPTS = 3;
 
   final String? protocol;
 
@@ -711,6 +712,7 @@ class WebSocketImpl extends Stream with _ServiceObject implements StreamSink {
   int? _outCloseCode;
   String? _outCloseReason;
   Timer? _closeTimer;
+  int _reconnectAttempts = 0;
 
   WebSocketImpl.fromSocket(
       Stream<List<int>> stream, StreamSink<List<int>> sink, this.protocol,
@@ -725,6 +727,7 @@ class WebSocketImpl extends Stream with _ServiceObject implements StreamSink {
         if (!_writeClosed) _consumer.add(_WebSocketPong(data.payload));
       } else if (data is _WebSocketPong) {
         // Simply set pingInterval, as it'll cancel any timers.
+        _reconnectAttempts = 0;
         pingInterval = _pingInterval;
       } else {
         _controller.add(data);
@@ -772,7 +775,7 @@ class WebSocketImpl extends Stream with _ServiceObject implements StreamSink {
 
   @override
   StreamSubscription listen(void Function(dynamic)? onData,
-          {Function? onError, void Function()? onDone, bool? cancelOnError}) =>
+      {Function? onError, void Function()? onDone, bool? cancelOnError}) =>
       _controller.stream.listen(onData,
           onError: onError, onDone: onDone, cancelOnError: cancelOnError);
 
@@ -790,7 +793,12 @@ class WebSocketImpl extends Stream with _ServiceObject implements StreamSink {
       _consumer.add(_WebSocketPing());
       _pingTimer = Timer(_pingInterval!, () {
         // No pong received.
-        _close(WebSocketStatus.GOING_AWAY);
+        _reconnectAttempts++;
+
+        if(_reconnectAttempts >= WebSocketImpl.MAX_RECONNECT_ATTEMPTS) {
+          _close(WebSocketStatus.GOING_AWAY);
+          _reconnectAttempts = 0;
+        }
       });
     });
   }
@@ -867,13 +875,13 @@ class WebSocketImpl extends Stream with _ServiceObject implements StreamSink {
 
   static bool _isReservedStatusCode(int? code) =>
       code != null &&
-      (code < WebSocketStatus.NORMAL_CLOSURE ||
-          code == WebSocketStatus.RESERVED_1004 ||
-          code == WebSocketStatus.NO_STATUS_RECEIVED ||
-          code == WebSocketStatus.ABNORMAL_CLOSURE ||
-          (code > WebSocketStatus.INTERNAL_SERVER_ERROR &&
-              code < WebSocketStatus.RESERVED_1015) ||
-          (code >= WebSocketStatus.RESERVED_1015 && code < 3000));
+          (code < WebSocketStatus.NORMAL_CLOSURE ||
+              code == WebSocketStatus.RESERVED_1004 ||
+              code == WebSocketStatus.NO_STATUS_RECEIVED ||
+              code == WebSocketStatus.ABNORMAL_CLOSURE ||
+              (code > WebSocketStatus.INTERNAL_SERVER_ERROR &&
+                  code < WebSocketStatus.RESERVED_1015) ||
+              (code >= WebSocketStatus.RESERVED_1015 && code < 3000));
 }
 
 // The following code is from sdk/lib/io/service_object.dart.
